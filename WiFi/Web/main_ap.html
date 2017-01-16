@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+    
+    <head>
+        <title>IN-14</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+    </head>
+    <body>
+       <form action="/set_wifi" method="POST" id="wifi_form">
+           <div data-role="fieldcontain">
+               <label for="ssid">SSID</label>
+               <input type="text" id="ssid" />
+           </div>
+           <div data-role="fieldcontain">
+               <label for="password">Password</label>
+               <input type="text" id="password" placeholder="  " />
+           </div>
+           <div data-role="fieldcontain">
+           <label for="wifi_set">&nbsp;</label>
+           <button id="wifi_set" class="ui-btn ui-btn-inline">Set</button>
+           </div>
+       </form>
+    </body>
+</html>
