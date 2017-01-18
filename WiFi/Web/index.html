@@ -52,8 +52,7 @@
 			return;
 		}
 		var value = getElementValue(element);
-		var msg = '{type:"br.set",value:{'+element.id+':"'+value+'"}}';
-		$(".ui-title").html(msg);
+		var msg = '5:'+element.id+':'+value;
 		safeSend(msg);
 	}
 	
@@ -62,19 +61,32 @@
 			return;
 		}
 		var value = getElementValue(element);
-		var msg = '{type:"br.set",value:{'+element.id+':"'+value+'"}}';
-		$(".ui-title").html(msg);
+		var msg = '5:'+element.id+':'+value;
 		safeSend(msg);
 	}
 	
+	function pageRefresh(activePage){
+		switch (activePage) {
+		case 'wifi': safeSend('1:'); break;
+		case 'clock': safeSend('2:'); break;
+		case 'leds': safeSend('3:'); break;
+		case 'alarm': safeSend('4:'); break;
+		}
+	} ;
+	
 	var ws;
 
-	ws = new WebSocket(url("/connect"));
+	ws = new WebSocket(/*url("/ws")*/"ws://in-14-shield/ws");
 	
 	ws.onopen = function(event) {
+		try {
+			pageRefresh($(".ui-page-active").attr("id"));
+		} catch (e) {			
+			(console.error || console.log).call(console, e.stack || e);
+		}
 	}
 	
-	ws.onMessage= function(event) {
+	ws.onmessage= function(event) {
 	  var msg = JSON.parse(event.data);
 	  
 	  switch(msg.type) {
@@ -100,28 +112,10 @@
 		}
 	}
 	
-	$(document).on('pagecreate', '#wifi' ,function(){
-		safeSend('{type:"br.init.wifi"}');
-		ws.onMessage({data: JSON.stringify(wifiData)});
-		ws.onMessage({data: JSON.stringify(statusData)});
-	});
-	
-	$(document).on('pagecreate', '#clock' ,function(){
-		safeSend('{type:"br.init.clock"}');
-		ws.onMessage({data: JSON.stringify(clockData)});
-	});
-	
-	$(document).on('pagecreate', '#leds' ,function(){
-		safeSend('{type:"br.init.leds"}');
-		ws.onMessage({data: JSON.stringify(ledsData)});
-	});
-	
-	$(document).on('pagecreate', '#alarm' ,function(){
-		safeSend('{type:"br.init.alarm"}');
-		ws.onMessage({data: JSON.stringify(alarmData)});
-	});
-	
 	$(document).ready(function () {
+		$(document).on('pagecontainerbeforechange', function(event, ui) {
+			pageRefresh(ui.toPage[0].id);			
+		});		
 	});
 	
 	// Test data
@@ -141,7 +135,7 @@
 		var clockData = {
 				type: "sv.init.clock",
 				value: {
-					time: true,
+					time_or_date: true,
 					date_format: 1,
 					time_format: false,
 					leading_zero: false,
@@ -199,15 +193,15 @@
                 <form action="/set_wifi" method="POST" id="wifi_form">
                     <div data-role="fieldcontain">
                         <label for="ssid">SSID</label>
-                        <input type="text" id="ssid" />
+                        <input type="text" name="ssid" id="ssid" />
                     </div>
                     <div data-role="fieldcontain">
                         <label for="password">Password</label>
-                        <input type="text" id="password" placeholder="  " />
+                        <input type="password" name="password" id="password"/>
                     </div>
                     <div data-role="fieldcontain">
                     <label for="wifi_set">&nbsp;</label>
-                    <button id="wifi_set" class="ui-btn ui-btn-inline">Set</button>
+                    <button type="submit" id="wifi_set" class="ui-btn ui-btn-inline">Set</button>
                     </div>
                 </form>
             </div>
@@ -235,10 +229,20 @@
             </div>
             <div data-role="content">
                 <form action="/set_clock" method="POST" id="clock_form">
-                    <div data-role="fieldcontain">
-					    <label for="time">Date/Time Display</label>
-					    <input onchange="elementChange(this)" type="checkbox" data-role="flipswitch" name="time" id="time" data-on-text="Time" data-off-text="Date" data-wrapper-class="custom-label-flipswitch">
-                    </div>
+					<div data-role="controlgroup">
+	                    <div data-role="fieldcontain">
+						    <label for="time_or_date">Date/Time Display</label>
+						    <input onchange="elementChange(this)" type="checkbox" data-role="flipswitch" name="time_or_date" id="time_or_date" data-on-text="Time" data-off-text="Date" data-wrapper-class="custom-label-flipswitch">
+	                    </div>
+	                    <div data-role="fieldcontain">
+						    <label for="time_format">12/24 Hour</label>
+						    <input onchange="elementChange(this)" type="checkbox" data-role="flipswitch" name="time_format" id="time_format" data-on-text="12H" data-off-text="24H" data-wrapper-class="custom-label-flipswitch">
+	                    </div>
+	                    <div data-role="fieldcontain">
+						    <label for="leading_zero">Leading Zero</label>
+						    <input onchange="elementChange(this)" type="checkbox" data-role="flipswitch" name="leading_zero" id="leading_zero" data-on-text="On" data-off-text="Off" data-wrapper-class="custom-label-flipswitch">
+					    </div>
+					</div>
                     <div data-role="fieldcontain">
 					    <label for="date_format">Date Format</label>
 	                    <select onchange="elementChange(this)" id="date_format" data-mini="true">
@@ -247,14 +251,6 @@
 	                        <option value="2">YY-MM-DD</option>
 	                    </select>
                     </div>
-                    <div data-role="fieldcontain">
-					    <label for="time_format">12/24 Hour</label>
-					    <input onchange="elementChange(this)" type="checkbox" data-role="flipswitch" name="time_format" id="time_format" data-on-text="12H" data-off-text="24H" data-wrapper-class="custom-label-flipswitch">
-                    </div>
-                    <div data-role="fieldcontain">
-					    <label for="leading_zero">Leading Zero</label>
-					    <input onchange="elementChange(this)" type="checkbox" data-role="flipswitch" name="leading_zero" id="leading_zero" data-on-text="On" data-off-text="Off" data-wrapper-class="custom-label-flipswitch">
-				    </div>
                     <div data-role="fieldcontain">
 						<div data-role="rangeslider">
 					        <label for="display_on">Display On</label>
