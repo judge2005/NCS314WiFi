@@ -36,8 +36,8 @@ int count = 1;
 
 const char *hostName = "in-14-shield";
 
-String ssid = "FiOS-3RA3E";
-String password = "son8638woman458wag";
+String ssid = "........";
+String password = "...........";
 
 bool time_or_date = true;
 byte date_format = 1;
