@@ -11,9 +11,11 @@
 #include <ESPAsyncWebServer.h>
 #include <base64.h>
 #include <SPIFFSEditor.h>
+#include "WiFi.h"
 
 #define I2C_TARGET 0x23
-#define I2C_TIME_UPDATE 0x0
+
+#define I2C_TIME_UPDATE 0x1
 
 #define SSID_START 0x0
 #define SSID_MAX 0x20
@@ -309,13 +311,74 @@ void loop() {
 	}
 }
 
-void sendTimeToI2C() {
-	Wire.beginTransmission(I2C_TARGET);
-	Wire.write(I2C_TIME_UPDATE); // Command
-	String body = httpClient.getBody();
-	sendStatus(body);
-	Wire.write(body.c_str());
+boolean getDataFromI2C() {
+	// We never read the time, but alarm_time is two bytes (so alarm_time-1+1)
+	int available = Wire.requestFrom(I2C_TARGET, (unsigned int) I2CCommands::alarm_time);
+
+	if (available == ((byte)I2CCommands::alarm_time) - 1) {
+		time_or_date = Wire.read();
+		date_format = Wire.read();
+		time_format = Wire.read();	//false = 24 hour
+		leading_zero = Wire.read();
+		display_on = Wire.read();
+		display_off = Wire.read();
+
+		backlight = Wire.read();
+		hue_cycling = Wire.read();
+		cycle_time = Wire.read();
+		hue = Wire.read();
+		saturation = Wire.read();
+		brightness = Wire.read();
+
+		alarm_set = Wire.read();
+
+		// This last one is a string. Expect two bytes, hour first, mins second
+		byte hours = Wire.read();
+		byte mins = Wire.read();
+		alarm_time = "";
+		if (hours < 10) {
+			alarm_time = "0";
+		}
+
+		alarm_time += hours;
+		alarm_time += ":";
+
+		if (mins < 10) {
+			alarm_time += 0;
+		}
+
+		alarm_time += mins;
+	}
+
 	int error = Wire.endTransmission();
+	return (error == 0);
+}
+
+void sendToI2C(I2CCommands command, byte value) {
+	Wire.beginTransmission(I2C_TARGET);
+	Wire.write((byte)(command)); // Command
+	Wire.write(value);
+	int error = Wire.endTransmission();
+}
+
+void sendToI2C(I2CCommands command, String value) {
+	Wire.beginTransmission(I2C_TARGET);
+	Wire.write((byte)(command)); // Command
+	Wire.write(value.c_str());
+	int error = Wire.endTransmission();
+}
+
+void sendToI2C(I2CCommands command, bool value) {
+	Wire.beginTransmission(I2C_TARGET);
+	Wire.write((byte)(command)); // Command
+	Wire.write(value);
+	int error = Wire.endTransmission();
+}
+
+void sendTimeToI2C() {
+	String body = httpClient.getBody();
+	sendToI2C(I2CCommands::time, body);
+	sendStatus(body);
 }
 
 void sendStatus(String msg) {
@@ -388,45 +451,59 @@ void updateValue(String pair) {
 		broadcastUpdateWithQuotes(_key, value);
 	} else if (strcmp("time_or_date", key) == 0) {
 		time_or_date = value == "true";
+		sendToI2C(I2CCommands::time_or_date, time_or_date);
 		broadcastUpdate(_key, value);
 	} else if (strcmp("date_format", key) == 0) {
 		date_format = value == "true";
+		sendToI2C(I2CCommands::date_format, date_format);
 		broadcastUpdate(_key, value);
 	} else if (strcmp("time_format", key) == 0) {
 		time_format = value == "true";
+		sendToI2C(I2CCommands::time_format, time_format);
 		broadcastUpdate(_key, value);
 	} else if (strcmp("leading_zero", key) == 0) {
 		leading_zero = value == "true";
+		sendToI2C(I2CCommands::leading_zero, leading_zero);
 		broadcastUpdate(_key, value);
 	} else if (strcmp("display_on", key) == 0) {
 		display_on = value.toInt();
+		sendToI2C(I2CCommands::display_on, display_on);
 		broadcastUpdate(_key, value);
 	} else if (strcmp("display_off", key) == 0) {
 		display_off = value.toInt();
+		sendToI2C(I2CCommands::display_off, display_off);
 		broadcastUpdate(_key, value);
 	} else if (strcmp("backlight", key) == 0) {
 		backlight = value == "true";
+		sendToI2C(I2CCommands::backlight, backlight);
 		broadcastUpdate(_key, value);
 	} else if (strcmp("hue_cycling", key) == 0) {
 		hue_cycling = value == "true";
+		sendToI2C(I2CCommands::hue_cycling, hue_cycling);
 		broadcastUpdate(_key, value);
 	} else if (strcmp("cycle_time", key) == 0) {
 		cycle_time = value.toInt();
+		sendToI2C(I2CCommands::cycle_time, cycle_time);
 		broadcastUpdate(_key, value);
 	} else if (strcmp("hue", key) == 0) {
 		hue = value.toInt();
+		sendToI2C(I2CCommands::hue, hue);
 		broadcastUpdate(_key, value);
 	} else if (strcmp("saturation", key) == 0) {
 		saturation = value.toInt();
+		sendToI2C(I2CCommands::saturation, saturation);
 		broadcastUpdate(_key, value);
 	} else if (strcmp("brightness", key) == 0) {
 		brightness = value.toInt();
+		sendToI2C(I2CCommands::brightness, brightness);
 		broadcastUpdate(_key, value);
 	} else if (strcmp("alarm_set", key) == 0) {
 		alarm_set = value == "true";
+		sendToI2C(I2CCommands::alarm_set, alarm_set);
 		broadcastUpdate(_key, value);
 	} else if (strcmp("alarm_time", key) == 0) {
 		alarm_time = value;
+		sendToI2C(I2CCommands::alarm_time, alarm_time);
 		broadcastUpdate(_key, value);
 	}
 }
