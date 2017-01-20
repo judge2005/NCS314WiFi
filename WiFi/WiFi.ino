@@ -15,14 +15,14 @@
 
 #define I2C_TARGET 0x23
 
-#define I2C_TIME_UPDATE 0x1
-
 #define SSID_START 0x0
 #define SSID_MAX 0x20
 #define PASSWORD_START 0x20
 #define PASSWORD_MAX 0x40
-#define URL_START 0x40
+#define URL_START (PASSWORD_START + PASSWORD_MAX)
 #define URL_MAX 0x100
+#define HOSTNAME_START (URL_START + URL_MAX)
+#define HOSTNAME_MAX 63
 
 #define DEBUG(...) { Wire.beginTransmission(I2C_TARGET); Wire.print(__VA_ARGS__); Wire.endTransmission(); }
 //#define DEBUG(...) {}
@@ -34,7 +34,7 @@ int led = 1;
 int d = 500;
 int count = 1;
 
-const char *hostName = "in-14-shield";
+String hostName = "in-14-shield";
 
 String ssid = "........";
 String password = "...........";
@@ -256,13 +256,15 @@ void setup() {
 	EEPROM.begin(512);
 	SPIFFS.begin();
 
+	String configHostname = readStringFromEEPROM(HOSTNAME_START, HOSTNAME_MAX);
+	if (configHostname.length() > 0) {
+		hostName = configHostname;
+	}
+
 	// initialize digital pin 13 as an output.
 	pinMode(led, OUTPUT);
 
 	Wire.begin(0, 2); // SDA = 0, SCL = 2
-	delay(100);
-
-	MDNS.begin(hostName);
 
 	WiFiConnect();
 
@@ -275,6 +277,8 @@ void setup() {
 	server.on("/", HTTP_GET, mainHandler);
 	server.on("/system", HTTP_GET, systemHandler);
 	server.on("/set_wifi", HTTP_POST, wifiHandler);
+
+	server.serveStatic("/assets", SPIFFS, "/assets");
 
 	// attach AsyncWebSocket
 	ws.onEvent(onEvent);
@@ -312,29 +316,38 @@ void loop() {
 }
 
 boolean getDataFromI2C() {
-	// We never read the time, but alarm_time is two bytes (so alarm_time-1+1)
-	int available = Wire.requestFrom(I2C_TARGET, (unsigned int) I2CCommands::alarm_time);
+	int available = Wire.requestFrom(I2C_TARGET, (unsigned int) I2CCommands::alarm_time+2);
 
-	if (available == ((byte)I2CCommands::alarm_time) - 1) {
-		time_or_date = Wire.read();
-		date_format = Wire.read();
-		time_format = Wire.read();	//false = 24 hour
-		leading_zero = Wire.read();
-		display_on = Wire.read();
-		display_off = Wire.read();
+	bool gotValues = false;
+	int data[17];
+	for (int i=0; i<17; i++) {
+		data[i] = 256;
+	}
 
-		backlight = Wire.read();
-		hue_cycling = Wire.read();
-		cycle_time = Wire.read();
-		hue = Wire.read();
-		saturation = Wire.read();
-		brightness = Wire.read();
+	if (available == ((byte)I2CCommands::alarm_time+2)) {
+		for (int i=0; i<17; i++) {
+			data[i] = Wire.read();
+		}
+		int i = 2; // First two bytes are junk
+		time_or_date = data[i++];
+		date_format = data[i++];
+		time_format = data[i++];	//false = 24 hour
+		leading_zero = data[i++];
+		display_on = data[i++];
+		display_off = data[i++];
 
-		alarm_set = Wire.read();
+		backlight = data[i++];
+		hue_cycling = data[i++];
+		cycle_time = data[i++];
+		hue = data[i++];
+		saturation = data[i++];
+		brightness = data[i++];
+
+		alarm_set = data[i++];
 
 		// This last one is a string. Expect two bytes, hour first, mins second
-		byte hours = Wire.read();
-		byte mins = Wire.read();
+		byte hours = data[i++];
+		byte mins = data[i++];
 		alarm_time = "";
 		if (hours < 10) {
 			alarm_time = "0";
@@ -348,10 +361,28 @@ boolean getDataFromI2C() {
 		}
 
 		alarm_time += mins;
+		gotValues = true;
 	}
 
-	int error = Wire.endTransmission();
-	return (error == 0);
+	Wire.beginTransmission(I2C_TARGET);
+	String s = "Got Values, flag=" + String(gotValues) + ":";
+	Wire.print(s);
+	Wire.endTransmission();
+	for (int i=0; i<17; i++) {
+		DEBUG(String(data[i]).c_str());
+	}
+}
+
+void receiveHandler(int bytes) {
+	byte command = Wire.read();
+	switch ((I2CCommands) command) {
+		case I2CCommands::hue:
+			hue = Wire.read();
+			broadcastUpdate("hue", String(hue));
+			break;
+	}
+	DEBUG("Got info from clock");
+	Wire.print(command);
 }
 
 void sendToI2C(I2CCommands command, byte value) {
@@ -375,10 +406,37 @@ void sendToI2C(I2CCommands command, bool value) {
 	int error = Wire.endTransmission();
 }
 
+void grabBytes(String s, byte *dest, String sep) {
+	int end = 0;
+	for (int start = 0; end != -1; start = end + 1) {
+		end = s.indexOf(sep, start);
+		if (end > 0) {
+			*dest++ = s.substring(start, end).toInt();
+		} else {
+			*dest++ = s.substring(start).toInt();
+		}
+	}
+}
 void sendTimeToI2C() {
 	String body = httpClient.getBody();
-	sendToI2C(I2CCommands::time, body);
+	byte args[7];
+	args[0] = (byte) I2CCommands::time;
+	grabBytes(body, &args[1], ",");
+
+	Wire.beginTransmission(I2C_TARGET);
+	Wire.write(args, 7);
+	int error = Wire.endTransmission();
 	sendStatus(body);
+}
+
+void sendAlarmToI2C() {
+	byte args[3];
+	args[0] = (byte) I2CCommands::alarm_time;
+	grabBytes(alarm_time, &args[1], ":");
+
+	Wire.beginTransmission(I2C_TARGET);
+	Wire.write(args, 3);
+	int error = Wire.endTransmission();
 }
 
 void sendStatus(String msg) {
@@ -503,7 +561,7 @@ void updateValue(String pair) {
 		broadcastUpdate(_key, value);
 	} else if (strcmp("alarm_time", key) == 0) {
 		alarm_time = value;
-		sendToI2C(I2CCommands::alarm_time, alarm_time);
+		sendAlarmToI2C();
 		broadcastUpdate(_key, value);
 	}
 }
@@ -585,22 +643,43 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
 	}
 }
 
+String getInput(String type, String name, String label, String value) {
+	String input = "<input type=\"" + type + "\" name=\"" + name + "\" placeholder=\"" + label + "\" value=\"" + value + "\"/>";
+
+	return input;
+}
+
 void mainHandler(AsyncWebServerRequest *request) {
 	DEBUG("Got main request");
 	if (WiFi.status() != WL_CONNECTED) {
-		request->send(SPIFFS, "/main_ap.html");
+		String response("<!DOCTYPE html><html><head><title>IN-14 Setup</title>");
+
+		response += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
+		response +=	"<link rel=\"stylesheet\" href=\"/assets/form.css\" /></head>";
+		response += "<body><div id=\"form-main\"><div id=\"form-div\">";
+		response += "<form class=\"form\" action=\"/set_wifi\" method=\"POST\" id=\"wifi_form\">";
+		response += getInput("text", "ssid", "SSID", readStringFromEEPROM(SSID_START, SSID_MAX));
+		response += getInput("password", "password", "Password", readStringFromEEPROM(PASSWORD_START, PASSWORD_MAX));
+		response += getInput("text", "hostname", "Hostname", readStringFromEEPROM(HOSTNAME_START, HOSTNAME_MAX));
+		response += "<input type=\"submit\" value=\"Set\" id=\"button-blue\"/>";
+		response += "</form></div></div></body></html>";
+
+		request->send(200, "text/html", response);
 	} else {
+		getDataFromI2C();
 		request->send(SPIFFS, "/index.html");
 	}
 }
+
 
 /**
    Get the header for a 2 column table
 */
 String getTableHead2Col(String tableHeader, String col1Header, String col2Header) {
-  String tableHead = "<div class=\"container\" role=\"main\"><h3 class=\"sub-header\">";
+  String tableHead = "<h3>";
   tableHead += tableHeader;
-  tableHead += "</h3><div class=\"table-responsive\"><table class=\"table table-striped\"><thead><tr><th>";
+  tableHead += "</h3>";
+  tableHead += "<table><thead><tr><th>";
   tableHead += col1Header;
   tableHead += "</th><th>";
   tableHead += col2Header;
@@ -635,7 +714,7 @@ String getTableFoot() {
 
 void systemHandler(AsyncWebServerRequest *request) {
 	DEBUG("Got system request");
-	String response;
+	String response("<html><head><title>IN-14 Stats</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><link rel=\"stylesheet\" href=\"/assets/table.css\"/></head><body>");
 	float voltage = (float) ESP.getVcc() / (float) 1024;
 	voltage -= 0.01f;  // by default reads high
 	char dtostrfbuffer[15];
@@ -656,6 +735,7 @@ void systemHandler(AsyncWebServerRequest *request) {
 	response += getTableRow2Col("Vcc", vccString);
 	response += getTableFoot();
 
+	response += "</body></html>";
 	request->send(200, "text/html", response);
 }
 
@@ -685,9 +765,16 @@ void wifiHandler(AsyncWebServerRequest *request) {
 		writeStringToEEPROM("", PASSWORD_START, PASSWORD_MAX);
 	}
 
-	request->redirect("/");
+	p = request->getParam("hostname", true);
+	if (p) {
+		String _hostname = p->value();
+		writeStringToEEPROM(_hostname, HOSTNAME_START, HOSTNAME_MAX);
+		DEBUG(_hostname.c_str());
+	} else {
+		writeStringToEEPROM("", HOSTNAME_START, HOSTNAME_MAX);
+	}
 
-	WiFiConnect();
+	ESP.restart();
 }
 
 void StartOTA() {
@@ -722,8 +809,10 @@ void StartOTA() {
 }
 
 void WiFiConnect() {
+	MDNS.begin(hostName.c_str());
+
 	WiFi.mode(WIFI_AP_STA);
-	WiFi.softAP(hostName);
+	WiFi.softAP(hostName.c_str());
 
 	initializeCredentials();
 

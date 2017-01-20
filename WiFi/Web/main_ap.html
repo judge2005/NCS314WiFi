@@ -1,25 +1,20 @@
 <!DOCTYPE html>
-<html>
-    
+<html>   
     <head>
-        <title>IN-14</title>
+        <title>IN-14 Setup</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-
+	<link rel="stylesheet" href="/assets/form.css" />
     </head>
     <body>
-       <form action="/set_wifi" method="POST" id="wifi_form">
-           <div data-role="fieldcontain">
-               <label for="ssid">SSID</label>
-               <input type="text" name="ssid" />
-           </div>
-           <div data-role="fieldcontain">
-               <label for="password">Password</label>
-               <input type="text" name="password"/>
-           </div>
-           <div data-role="fieldcontain">
-           <label for="wifi_set">&nbsp;</label>
-           <button type="submit" id="wifi_set" class="ui-btn ui-btn-inline">Set</button>
-           </div>
+ <div id="form-main">
+  <div id="form-div">
+          <form class="form" action="/set_wifi" method="POST" id="wifi_form">
+            <input type="text" name="ssid" placeholder="SSID" value=""/>
+            <input type="password" name="password" placeholder="Password"/>
+            <input type="text" name="hostname" placeholder="Hostname"/>
+			<input type="submit" value="Set" id="button-blue">
        </form>
+       </div>
+       </div>
     </body>
 </html>

@@ -76,7 +76,7 @@
 	
 	var ws;
 
-	ws = new WebSocket(/*url("/ws")*/"ws://in-14-shield/ws");
+	ws = new WebSocket(url("/ws"));
 	
 	ws.onopen = function(event) {
 		try {
@@ -297,8 +297,8 @@
 					    <input onchange="elementChange(this)" type="checkbox" data-role="flipswitch" name="hue_cycling" id="hue_cycling" data-on-text="On" data-off-text="Off" data-wrapper-class="custom-label-flipswitch">
                     </div>
                     <div data-role="fieldcontain">
-					    <label for="cycle_time">Cycle Time (mins)</label>
-					    <input onchange="elementChange(this)" type="range" name="cycle_time" id="cycle_time" data-highlight="true" min="0" max="60">
+					    <label for="cycle_time">Cycle Time (6s)</label>
+					    <input onchange="elementChange(this)" type="range" name="cycle_time" id="cycle_time" data-highlight="true" min="1" max="200">
                     </div>
                     <div data-role="fieldcontain">
 					    <label for="hue">Hue</label>
