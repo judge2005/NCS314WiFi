@@ -9,6 +9,7 @@
 #include <ESP8266mDNS.h>
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
+#include <fauxmoESP.h>
 #include <base64.h>
 #include <SPIFFSEditor.h>
 #include "WiFi.h"
@@ -29,6 +30,7 @@
 
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws"); // access at ws://[esp ip]/ws
+fauxmoESP fauxmo;
 
 int led = 1;
 int d = 500;
@@ -286,6 +288,13 @@ void setup() {
 
 	server.begin();
 	ws.enable(true);
+
+    fauxmo.addDevice("alarm clock");
+    fauxmo.addDevice("backlight");
+    fauxmo.addDevice("cycle");
+    fauxmo.addDevice("date");
+
+    fauxmo.onMessage(fauxmoMessageHandler);
 }
 
 unsigned long lastUpdate = 0;
@@ -300,9 +309,11 @@ void loop() {
 
 	unsigned long now = millis();
 
+	fauxmo.handle();
+
 	if (WiFi.status() == WL_CONNECTED) {
 		// See if it is time to update the Clock
-		if (now - lastUpdate > 60000) {
+		if (lastUpdate == 0 || now - lastUpdate > 60000) {
 			lastUpdate = now;
 			httpClient.makeRequest(sendTimeToI2C, sendStatus);
 		}
@@ -373,6 +384,44 @@ boolean getDataFromI2C() {
 	}
 }
 
+void fauxmoMessageHandler(unsigned char device_id, const char * device_name, bool state) {
+	Wire.beginTransmission(I2C_TARGET);
+	Wire.printf("Device #%d (%s): %s\n", device_id, device_name, state ? "ON" : "OFF");
+	Wire.endTransmission();
+
+	switch (device_id) {
+	case 0:
+		if (alarm_set != state) {
+			alarm_set = state;
+			sendToI2C(I2CCommands::alarm_set, alarm_set);
+			broadcastUpdate("alarm_set", alarm_set ? "true" : "false");
+		}
+		break;
+	case 1:
+		if (backlight != state) {
+			backlight = state;
+			sendToI2C(I2CCommands::backlight, backlight);
+			broadcastUpdate("backlight", backlight ? "true" : "false");
+		}
+		break;
+	case 2:
+		if (hue_cycling != state) {
+			hue_cycling = state;
+			sendToI2C(I2CCommands::hue_cycling, hue_cycling);
+			broadcastUpdate("hue_cycling", hue_cycling ? "true" : "false");
+		}
+		break;
+	case 3:
+		// Weird because date == on means time_or_date = false!
+		if (time_or_date == state) {
+			time_or_date = !state;
+			sendToI2C(I2CCommands::time_or_date, time_or_date);
+			broadcastUpdate("time_or_date", time_or_date ? "true" : "false");
+		}
+		break;
+	}
+}
+
 void receiveHandler(int bytes) {
 	byte command = Wire.read();
 	switch ((I2CCommands) command) {
@@ -406,6 +455,18 @@ void sendToI2C(I2CCommands command, bool value) {
 	int error = Wire.endTransmission();
 }
 
+void grabInts(String s, int *dest, String sep) {
+	int end = 0;
+	for (int start = 0; end != -1; start = end + 1) {
+		end = s.indexOf(sep, start);
+		if (end > 0) {
+			*dest++ = s.substring(start, end).toInt();
+		} else {
+			*dest++ = s.substring(start).toInt();
+		}
+	}
+}
+
 void grabBytes(String s, byte *dest, String sep) {
 	int end = 0;
 	for (int start = 0; end != -1; start = end + 1) {
@@ -417,11 +478,18 @@ void grabBytes(String s, byte *dest, String sep) {
 		}
 	}
 }
+
 void sendTimeToI2C() {
 	String body = httpClient.getBody();
+	int intValues[7];
+	grabInts(body, &intValues[1], ",");
+
 	byte args[7];
 	args[0] = (byte) I2CCommands::time;
-	grabBytes(body, &args[1], ",");
+	args[1] = (byte) (intValues[1] - 2000);
+	for (int i=2; i<7; i++) {
+		args[i] = intValues[i];
+	}
 
 	Wire.beginTransmission(I2C_TARGET);
 	Wire.write(args, 7);
@@ -512,7 +580,7 @@ void updateValue(String pair) {
 		sendToI2C(I2CCommands::time_or_date, time_or_date);
 		broadcastUpdate(_key, value);
 	} else if (strcmp("date_format", key) == 0) {
-		date_format = value == "true";
+		date_format = value.toInt();
 		sendToI2C(I2CCommands::date_format, date_format);
 		broadcastUpdate(_key, value);
 	} else if (strcmp("time_format", key) == 0) {
