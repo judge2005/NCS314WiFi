@@ -28,6 +28,7 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/WiFi/libraries/ESPAsyncTCP/src}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/WiFi/libraries/ESPAsyncWebServer}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/WiFi/libraries/ESPAsyncWebServer/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/WiFi/libraries/xoseperez-fauxmoesp-d5ba9df9b7af/src}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/WiFi/libraries/Hash}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/WiFi/libraries/Hash/src}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/WiFi/libraries/ESP8266mDNS}&quot;"/>
@@ -49,6 +50,7 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/WiFi/libraries/ESPAsyncTCP/src}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/WiFi/libraries/ESPAsyncWebServer}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/WiFi/libraries/ESPAsyncWebServer/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/WiFi/libraries/xoseperez-fauxmoesp-d5ba9df9b7af/src}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/WiFi/libraries/Hash}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/WiFi/libraries/Hash/src}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/WiFi/libraries/ESP8266mDNS}&quot;"/>
@@ -67,7 +69,7 @@
 						</toolChain>
 					</folderInfo>
 					<sourceEntries>
-						<entry excluding="libraries/?*/**/?xamples/**|libraries/?*/**/?xtras/**|libraries/?*/**/test*/**|libraries/?*/**/third-party/**|libraries**/._*" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name=""/>
+						<entry excluding="libraries/?*/**/test*/**|libraries**/._*|libraries/?*/**/third-party/**|libraries/?*/**/?xamples/**|libraries/?*/**/?xtras/**" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name=""/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>

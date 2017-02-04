@@ -2,7 +2,8 @@
 #include "Arduino.h"
 #include <EEPROM.h>
 #include <Wire.h>
-#ifdef OTA	// ESP01 is too small!
+#define OTA
+#ifdef OTA
 #include <ArduinoOTA.h>
 #endif
 #include <ESP8266WiFi.h>
@@ -289,7 +290,7 @@ void setup() {
 	server.begin();
 	ws.enable(true);
 
-    fauxmo.addDevice("alarm clock");
+    fauxmo.addDevice("nixie");
     fauxmo.addDevice("backlight");
     fauxmo.addDevice("cycle");
     fauxmo.addDevice("date");
@@ -851,7 +852,7 @@ void StartOTA() {
 	ArduinoOTA.setPort(8266);
 
 	// Hostname defaults to esp8266-[ChipID]
-	ArduinoOTA.setHostname(hostName);
+	ArduinoOTA.setHostname(hostName.c_str());
 
 	// No authentication by default
 //	ArduinoOTA.setPassword("in14");
