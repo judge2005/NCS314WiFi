@@ -4,8 +4,12 @@
     <head>
         <title>IN-14</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-
+	<script src="http://code.jquery.com/jquery-1.11.1.min.js"></script>
+	<script src="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/jquery.roundslider/1.3/roundslider.min.js"></script>
 	<link rel="stylesheet" href="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.css" />
+	<link href="https://cdn.jsdelivr.net/jquery.roundslider/1.3/roundslider.min.css" rel="stylesheet" />                                    
+
 	<style type="text/css">
 .dispInline, .dispInlineLabel{
     display: inline-block;
@@ -13,20 +17,52 @@
 }
 .dispInlineLabel{
     min-width: 150px;
+    vertical-align: middle;
 }
 .dispInline{
      min-width: 150px;
+    vertical-align: middle;
 }
 .clearFloats{
     clear:both;
 }
+
+.rs-control .rs-range-color {
+  background: #3080c0;
+}
+
+.rs-control .rs-path-color {
+    background-color: #e9e9e9;
+}
+
+.rs-control .rs-handle {
+    background-color: #f6f6f6;
+    border: 2px solid #d0d0d0;   
+}
+
+.rs-tooltip-text {
+font-size: 16px;
+}
+
+.rs-tooltip.hover {
+    background-color: #e9e9e9;
+}
 	</style>
-	<script src="http://code.jquery.com/jquery-1.11.1.min.js"></script>
-	<script src="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>
 	<script>
 	var serverSetting = false;
 	function updateElements(values) {
 		serverSetting = true;
+		var displayOn = values["display_on"];
+		if (typeof displayOn != 'undefined') {
+			$('#on_range').roundSlider("setValue", displayOn, 1);
+			delete values["display_on"];
+		}
+		var displayOff = values["display_off"];
+		if (typeof displayOff != 'undefined') {
+			$('#on_range').roundSlider("setValue", displayOff, 2);
+			delete values["display_off"];
+		}
+ 
 		Object.keys(values).forEach(function(key, index) {
 			var element = $('#' + key);
 			var elType = element.attr('type');
@@ -150,7 +186,39 @@
 	
 	$(document).ready(function () {
 		$(document).on('pagecontainerbeforechange', function(event, ui) {
-			pageRefresh(ui.toPage[0].id);			
+			$.fn.roundSlider.prototype._invertRange = true;
+			$("#on_range").roundSlider({
+				  sliderType: "range",
+				  //showTooltip: false,
+				  radius: 60,
+				  width: 20,
+				  min: 0,
+				  max: 24,
+				  step: 1,
+				  value: "8,22",
+				  startAngle: 0,
+				  endAngle: "+360",
+				  handleSize: "+8",
+				  
+				  change: function(e) {
+					if (serverSetting) {
+						return;
+					}
+					
+					var values = e.value.split(',');
+					var msg = '5:display_on:'+values[0];
+					safeSend(msg);
+					msg = '5:display_off:'+values[1];
+					safeSend(msg);
+				  }
+				});
+			
+			pageRefresh(ui.toPage[0].id);
+			
+//			setTimeout(function() {
+//				updateElements(clockData.value);
+//			}, 5000);
+			
 		});		
 	});
 	
@@ -229,11 +297,15 @@
                 <form action="/set_wifi" method="POST" id="wifi_form">
                     <div data-role="fieldcontain">
                         <label for="ssid">SSID</label>
-                        <input type="text" name="ssid" id="ssid" />
+                        <input type="text" name="ssid" id="ssid" maxlength="32"/>
                     </div>
                     <div data-role="fieldcontain">
                         <label for="password">Password</label>
-                        <input type="password" name="password" id="password"/>
+                        <input type="password" name="password" id="password" maxlength="64"/>
+                    </div>
+                    <div data-role="fieldcontain">
+                        <label for="hostname">Hostname</label>
+                        <input type="text" name="hostname" id="hostname" maxlength="63"/>
                     </div>
                     <div data-role="fieldcontain">
                     <label for="wifi_set">&nbsp;</label>
@@ -297,13 +369,13 @@
 		                    </select>
 	                    </div>
  	                    <div class="clearFloats"></div>
-                    <div data-role="fieldcontain">
-						<div data-role="rangeslider">
-					        <label for="display_on">Display On</label>
-					        <input onchange="elementChange(this)" type="range" name="display_on" id="display_on" min="0" max="23" value="6"/>
-					        <label for="display_off">Display Off</label>
-					        <input onchange="elementChange(this)" type="range" name="display_off" id="display_off" min="0" max="24" value="23"/>
-					    </div>
+ 						<div class="dispInlineLabel" >
+					    	<label for="on_range">Display On</label>
+						</div>
+						<div class="dispInline" >
+							<div id="on_range">
+						</div>
+						</div>
 					</div>
                     <div data-role="fieldcontain">
                     <label for="time_server">Time Server URL</label>

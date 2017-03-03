@@ -290,10 +290,10 @@ void setup() {
 	server.begin();
 	ws.enable(true);
 
-    fauxmo.addDevice("nixie");
-    fauxmo.addDevice("backlight");
-    fauxmo.addDevice("cycle");
-    fauxmo.addDevice("date");
+    fauxmo.addDevice("nixie one");
+    fauxmo.addDevice("backlight one");
+    fauxmo.addDevice("cycle one");
+    fauxmo.addDevice("date one");
 
     fauxmo.onMessage(fauxmoMessageHandler);
 }
@@ -319,12 +319,13 @@ void loop() {
 			httpClient.makeRequest(sendTimeToI2C, sendStatus);
 		}
 	}
-
+#ifdef notdef
 	if (now - lastBlink > d) {
 		lastBlink = now;
 		ledState = ledState ^ 1;
 		digitalWrite(led, ledState);
 	}
+#endif
 }
 
 boolean getDataFromI2C() {
@@ -520,6 +521,8 @@ void sendWifiValues(AsyncWebSocketClient *client) {
 	json += ssid;
 	json += "\",\"password\":\"";
 	json += password;
+	json += "\",\"hostname\":\"";
+	json += hostName;
 	json += "\"}}";
 
 	client->text(json);

@@ -184,10 +184,10 @@ environment/project/it.baeyens.arduino.core.toolChain.release.1881269765/A.EXTRA
 environment/project/it.baeyens.arduino.core.toolChain.release.1881269765/A.EXTRA.TIME.DTS/value=0
 environment/project/it.baeyens.arduino.core.toolChain.release.1881269765/A.EXTRA.TIME.LOCAL/delimiter=;
 environment/project/it.baeyens.arduino.core.toolChain.release.1881269765/A.EXTRA.TIME.LOCAL/operation=replace
-environment/project/it.baeyens.arduino.core.toolChain.release.1881269765/A.EXTRA.TIME.LOCAL/value=1486162060
+environment/project/it.baeyens.arduino.core.toolChain.release.1881269765/A.EXTRA.TIME.LOCAL/value=1488483415
 environment/project/it.baeyens.arduino.core.toolChain.release.1881269765/A.EXTRA.TIME.UTC/delimiter=;
 environment/project/it.baeyens.arduino.core.toolChain.release.1881269765/A.EXTRA.TIME.UTC/operation=replace
-environment/project/it.baeyens.arduino.core.toolChain.release.1881269765/A.EXTRA.TIME.UTC/value=1486180060
+environment/project/it.baeyens.arduino.core.toolChain.release.1881269765/A.EXTRA.TIME.UTC/value=1488501415
 environment/project/it.baeyens.arduino.core.toolChain.release.1881269765/A.EXTRA.TIME.ZONE/delimiter=;
 environment/project/it.baeyens.arduino.core.toolChain.release.1881269765/A.EXTRA.TIME.ZONE/operation=replace
 environment/project/it.baeyens.arduino.core.toolChain.release.1881269765/A.EXTRA.TIME.ZONE/value=-18000
@@ -340,7 +340,7 @@ environment/project/it.baeyens.arduino.core.toolChain.release.1881269765/A.SERIA
 environment/project/it.baeyens.arduino.core.toolChain.release.1881269765/A.SERIAL.PORT.FILE/value=${A.SERIAL.PORT} 
 environment/project/it.baeyens.arduino.core.toolChain.release.1881269765/A.SERIAL.PORT/delimiter=;
 environment/project/it.baeyens.arduino.core.toolChain.release.1881269765/A.SERIAL.PORT/operation=replace
-environment/project/it.baeyens.arduino.core.toolChain.release.1881269765/A.SERIAL.PORT/value=ncs314-2.local
+environment/project/it.baeyens.arduino.core.toolChain.release.1881269765/A.SERIAL.PORT/value=ncs314-1.local
 environment/project/it.baeyens.arduino.core.toolChain.release.1881269765/A.SOFTWARE/delimiter=;
 environment/project/it.baeyens.arduino.core.toolChain.release.1881269765/A.SOFTWARE/operation=replace
 environment/project/it.baeyens.arduino.core.toolChain.release.1881269765/A.SOFTWARE/value=baeyens
@@ -427,7 +427,7 @@ environment/project/it.baeyens.arduino.core.toolChain.release.1881269765/JANTJE.
 environment/project/it.baeyens.arduino.core.toolChain.release.1881269765/JANTJE.BOARD_NAME/value=Generic ESP8266 Module
 environment/project/it.baeyens.arduino.core.toolChain.release.1881269765/JANTJE.COM_PORT/delimiter=;
 environment/project/it.baeyens.arduino.core.toolChain.release.1881269765/JANTJE.COM_PORT/operation=replace
-environment/project/it.baeyens.arduino.core.toolChain.release.1881269765/JANTJE.COM_PORT/value=ncs314-2.local at 192.168.1.195 (ESP8266_ESP01)null 8266
+environment/project/it.baeyens.arduino.core.toolChain.release.1881269765/JANTJE.COM_PORT/value=ncs314-1.local at 192.168.1.197 (ESP8266_ESP01)null 8266
 environment/project/it.baeyens.arduino.core.toolChain.release.1881269765/JANTJE.CPU\ FREQUENCY/delimiter=;
 environment/project/it.baeyens.arduino.core.toolChain.release.1881269765/JANTJE.CPU\ FREQUENCY/operation=replace
 environment/project/it.baeyens.arduino.core.toolChain.release.1881269765/JANTJE.CPU\ FREQUENCY/value=80 MHz
