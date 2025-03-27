@@ -10,7 +10,10 @@
 #include <ESP8266mDNS.h>
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
+#include <ESPAsyncHTTPClient.h>
+#ifdef USE_FAUXMO_ESP
 #include <fauxmoESP.h>
+#endif
 #include <base64.h>
 #include <SPIFFSEditor.h>
 #include "WiFi.h"
@@ -26,15 +29,33 @@
 #define HOSTNAME_START (URL_START + URL_MAX)
 #define HOSTNAME_MAX 63
 
-#define DEBUG(...) { Wire.beginTransmission(I2C_TARGET); Wire.print(__VA_ARGS__); Wire.endTransmission(); }
-//#define DEBUG(...) {}
+//#define DEBUG(...) { Wire.beginTransmission(I2C_TARGET); Wire.print(__VA_ARGS__); Wire.endTransmission(); }
+//#define DEBUG_SERIAL
+//#define DEBUG(...) {Serial.println(__VA_ARGS__);}
+#define DEBUG(...) {}
+
+String readStringFromEEPROM(int start, int max);
+void writeStringToEEPROM(String s, int start, int max);
+void WiFiConnect();
+void StartOTA();
+void mainHandler(AsyncWebServerRequest *request);
+void systemHandler(AsyncWebServerRequest *request);
+void wifiHandler(AsyncWebServerRequest *request);
+void initializeCredentials();
+void broadcastUpdate(String field, String value);
+void broadcastUpdateWithQuotes(String field, String value);
+void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len);
+void sendTimeToI2C();
+void sendStatus(String msg);
 
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws"); // access at ws://[esp ip]/ws
+#ifdef USE_FAUXMO_ESP
 fauxmoESP fauxmo;
+#endif
 
 int led = 1;
-int d = 500;
+int d = 5000;
 int count = 1;
 
 String hostName = "in-14-shield";
@@ -61,201 +82,13 @@ String alarm_time = "22:30";
 
 String lastStatus = "";
 
-class ByteString: public String {
-public:
-	ByteString(void *data, size_t len) :
-			String() {
-		copy(data, len);
-	}
-
-	ByteString() :
-			String() {
-	}
-
-	String& copy(const void *data, unsigned int length) {
-		if (!reserve(length)) {
-			invalidate();
-			return *this;
-		}
-		len = length;
-		memcpy(buffer, data, length);
-		buffer[length] = 0;
-		return *this;
-	}
-};
-
-/**
- * Asynchronous TCP Client to retrieve data/time
- */
-struct AsyncHTTPClient {
-	AsyncClient *aClient = NULL;
-
-	bool initialized = false;
-	String protocol;
-	String base64Authorization;
-	String host;
-	int port;
-	String uri;
-	String request;
-
-	ByteString response;
-	int statusCode;
-	void (*onSuccess)();
-	void (*onFail)(String);
-
-	void initialize(String url) {
-		// check for : (http: or https:
-		int index = url.indexOf(':');
-		if(index < 0) {
-			initialized = false;	// This is not a URL
-		}
-
-		protocol = url.substring(0, index);
-		DEBUG(protocol);
-		url.remove(0, (index + 3)); // remove http:// or https://
-
-		index = url.indexOf('/');
-		String hostPart = url.substring(0, index);
-		DEBUG(hostPart);
-		url.remove(0, index); // remove hostPart part
-
-		// get Authorization
-		index = hostPart.indexOf('@');
-
-		if(index >= 0) {
-			// auth info
-			String auth = hostPart.substring(0, index);
-			hostPart.remove(0, index + 1); // remove auth part including @
-			base64Authorization = base64::encode(auth);
-		}
-
-		// get port
-		port = 80;	//Default
-		index = hostPart.indexOf(':');
-		if(index >= 0) {
-			host = hostPart.substring(0, index); // hostname
-			host.remove(0, (index + 1)); // remove hostname + :
-			DEBUG(host);
-			port = host.toInt(); // get port
-			DEBUG(port);
-		} else {
-			host = hostPart;
-			DEBUG(host);
-		}
-		uri = url;
-		if (protocol != "http") {
-			initialized = false;
-		}
-
-		DEBUG(initialized);
-		request = "GET " + uri + " HTTP/1.1\r\nHost: " + host + "\r\n\r\n";
-
-		DEBUG(request);
-		initialized = true;
-	}
-
-	int getStatusCode() { return statusCode; }
-
-	String getBody() {
-		if (statusCode == 200) {
-			int bodyStart = response.indexOf("\r\n\r\n") + 4;
-			return response.substring(bodyStart);
-		} else {
-			return "";
-		}
-	}
-
-	static void clientError(void *arg, AsyncClient *client, int error) {
-		DEBUG("Connect Error");
-		AsyncHTTPClient *self = (AsyncHTTPClient*)arg;
-		self->onFail("Connection error");
-		self->aClient = NULL;
-		delete client;
-	}
-
-	static void clientDisconnect(void *arg, AsyncClient *client) {
-		DEBUG("Disconnected");
-		AsyncHTTPClient *self = (AsyncHTTPClient*)arg;
-		self->aClient = NULL;
-		delete client;
-	}
-
-	static void clientData(void *arg, AsyncClient *client, void *data, size_t len) {
-		DEBUG("Got response");
-
-		AsyncHTTPClient *self = (AsyncHTTPClient*)arg;
-		self->response = ByteString(data, len);
-		String status = self->response.substring(9, 12);
-		self->statusCode = atoi(status.c_str());
-		DEBUG(status.c_str());
-
-		if (self->statusCode == 200) {
-			self->onSuccess();
-		} else {
-			self->onFail("Failed with code " + status);
-		}
-	}
-
-	static void clientConnect(void *arg, AsyncClient *client) {
-		DEBUG("Connected");
-
-		AsyncHTTPClient *self = (AsyncHTTPClient*)arg;
-
-		self->response.copy("", 0);
-		self->statusCode = -1;
-
-		// Clear oneError handler
-		self->aClient->onError(NULL, NULL);
-
-		// Set disconnect handler
-		client->onDisconnect(clientDisconnect, self);
-
-		client->onData(clientData, self);
-
-		//send the request
-		client->write(self->request.c_str());
-	}
-
-	void makeRequest(void (*success)(), void (*fail)(String msg)) {
-		onFail = fail;
-
-		if (!initialized) {
-			fail("Not initialized");
-			return;
-		}
-
-		if (aClient) { //client already exists
-			fail("Call taking forever");
-			return;
-		}
-
-		aClient = new AsyncClient();
-		if (!aClient) { //could not allocate client
-			fail("Out of memory");
-			return;
-		}
-
-		onSuccess = success;
-
-		aClient->onError(clientError, this);
-
-		aClient->onConnect(clientConnect, this);
-
-		if (!aClient->connect(host.c_str(), port)) {
-			DEBUG("Connect Fail");
-			fail("Connection failed");
-			AsyncClient * client = aClient;
-			aClient = NULL;
-			delete client;
-		}
-	}
-};
-
 AsyncHTTPClient httpClient;
-
 
 // the setup function runs once when you press reset or power the board
 void setup() {
+#ifdef DEBUG_SERIAL
+	Serial.begin(9600);
+#endif
 	EEPROM.begin(512);
 	SPIFFS.begin();
 
@@ -267,8 +100,9 @@ void setup() {
 	// initialize digital pin 13 as an output.
 	pinMode(led, OUTPUT);
 
+#ifndef DEBUG_SERIAL
 	Wire.begin(0, 2); // SDA = 0, SCL = 2
-
+#endif
 	WiFiConnect();
 
 	MDNS.addService("http", "tcp", 80);
@@ -289,13 +123,14 @@ void setup() {
 
 	server.begin();
 	ws.enable(true);
-
+#ifdef USE_FAUXMO_ESP
     fauxmo.addDevice("nixie one");
     fauxmo.addDevice("backlight one");
     fauxmo.addDevice("cycle one");
     fauxmo.addDevice("date one");
 
     fauxmo.onMessage(fauxmoMessageHandler);
+#endif
 }
 
 unsigned long lastUpdate = 0;
@@ -310,7 +145,9 @@ void loop() {
 
 	unsigned long now = millis();
 
+#ifdef USE_FAUXMO_ESP
 	fauxmo.handle();
+#endif
 
 	if (WiFi.status() == WL_CONNECTED) {
 		// See if it is time to update the Clock
@@ -324,11 +161,13 @@ void loop() {
 		lastBlink = now;
 		ledState = ledState ^ 1;
 		digitalWrite(led, ledState);
+		DEBUG("loop");
 	}
 #endif
 }
 
-boolean getDataFromI2C() {
+void getDataFromI2C() {
+#ifndef DEBUG_SERIAL
 	int available = Wire.requestFrom(I2C_TARGET, (unsigned int) I2CCommands::alarm_time+2);
 
 	bool gotValues = false;
@@ -384,8 +223,10 @@ boolean getDataFromI2C() {
 	for (int i=0; i<17; i++) {
 		DEBUG(String(data[i]).c_str());
 	}
+#endif
 }
 
+#ifdef USE_FAUXMO_ESP
 void fauxmoMessageHandler(unsigned char device_id, const char * device_name, bool state) {
 	Wire.beginTransmission(I2C_TARGET);
 	Wire.printf("Device #%d (%s): %s\n", device_id, device_name, state ? "ON" : "OFF");
@@ -423,8 +264,10 @@ void fauxmoMessageHandler(unsigned char device_id, const char * device_name, boo
 		break;
 	}
 }
+#endif
 
 void receiveHandler(int bytes) {
+#ifndef DEBUG_SERIAL
 	byte command = Wire.read();
 	switch ((I2CCommands) command) {
 		case I2CCommands::hue:
@@ -434,27 +277,34 @@ void receiveHandler(int bytes) {
 	}
 	DEBUG("Got info from clock");
 	Wire.print(command);
+#endif
 }
 
 void sendToI2C(I2CCommands command, byte value) {
+#ifndef DEBUG_SERIAL
 	Wire.beginTransmission(I2C_TARGET);
 	Wire.write((byte)(command)); // Command
 	Wire.write(value);
 	int error = Wire.endTransmission();
+#endif
 }
 
 void sendToI2C(I2CCommands command, String value) {
+#ifndef DEBUG_SERIAL
 	Wire.beginTransmission(I2C_TARGET);
 	Wire.write((byte)(command)); // Command
 	Wire.write(value.c_str());
 	int error = Wire.endTransmission();
+#endif
 }
 
 void sendToI2C(I2CCommands command, bool value) {
+#ifndef DEBUG_SERIAL
 	Wire.beginTransmission(I2C_TARGET);
 	Wire.write((byte)(command)); // Command
 	Wire.write(value);
 	int error = Wire.endTransmission();
+#endif
 }
 
 void grabInts(String s, int *dest, String sep) {
@@ -483,6 +333,9 @@ void grabBytes(String s, byte *dest, String sep) {
 
 void sendTimeToI2C() {
 	String body = httpClient.getBody();
+	DEBUG(body);
+
+#ifndef DEBUG_SERIAL
 	int intValues[7];
 	grabInts(body, &intValues[1], ",");
 
@@ -496,10 +349,12 @@ void sendTimeToI2C() {
 	Wire.beginTransmission(I2C_TARGET);
 	Wire.write(args, 7);
 	int error = Wire.endTransmission();
+#endif
 	sendStatus(body);
 }
 
 void sendAlarmToI2C() {
+#ifndef DEBUG_SERIAL
 	byte args[3];
 	args[0] = (byte) I2CCommands::alarm_time;
 	grabBytes(alarm_time, &args[1], ":");
@@ -507,6 +362,7 @@ void sendAlarmToI2C() {
 	Wire.beginTransmission(I2C_TARGET);
 	Wire.write(args, 3);
 	int error = Wire.endTransmission();
+#endif
 }
 
 void sendStatus(String msg) {
